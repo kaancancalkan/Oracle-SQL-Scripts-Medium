@@ -1,0 +1,120 @@
+/* Formatted on 12/10/2023 5:12:14 PM (QP5 v5.388) */
+  SELECT PPNF.FIRST_NAME,
+         PPNF.LAST_NAME,
+         PPNF.FULL_NAME,
+         PAPF.PERSON_NUMBER,
+         TO_CHAR (PPOS.DATE_START, 'dd.mm.yyyy')     AS START_DATE,
+         HAPTL.NAME                                  AS POSITION,
+         HOUFL.NAME                                  AS DEPARTMAN,
+         PJFL.NAME                                   AS JOB,
+         PL.INTERNAL_LOCATION_CODE,
+         PLFL.LOCATION_NAME,
+         PNI.NATIONAL_IDENTIFIER_NUMBER,
+         CS.SALARY_AMOUNT,
+         CS.CURRENCY_CODE,
+         (SELECT flvg.meaning
+           FROM FND_LOOKUP_VALUES FLVG
+          WHERE     flvg.lookup_type = 'SEX'
+                AND flvg.language = 'TR'
+                AND flvg.lookup_code = pplf.sex)     AS GENDER,
+         TO_CHAR (PP.DATE_OF_BIRTH, 'dd.mm.yyyy')    AS BIRTH_DATE,
+         PP.TOWN_OF_BIRTH,
+         (SELECT FLVA.MEANING
+           FROM FND_LOOKUP_VALUES FLVA
+          WHERE     FLVA.LOOKUP_CODE = PAAM.EMPLOYMENT_CATEGORY
+                AND FLVA.LANGUAGE = 'TR'
+                AND FLVA.LOOKUP_TYPE = 'EMP_CAT')    AS CALISMAS,
+         --PAAM. ASS_ATTRIBUTE2ye baktým DOLUYSA Aldým
+         --boþ ise pozisyon HR_ALL_POSITIONS_Fde ATTRIBUTE1 doluysa aldým
+         --boþ ise departman HR_ORGANIZATION_UNITS ATTRIBUTE1 aldým (boþ olamaz)
+         (CASE
+              WHEN PAAM.ASS_ATTRIBUTE2 IS NOT NULL THEN PAAM.ASS_ATTRIBUTE2
+              WHEN HAPF.ATTRIBUTE1 IS NOT NULL THEN HAPF.ATTRIBUTE1
+              ELSE HOU.ATTRIBUTE1
+          END)                                       AS MASRAF
+    FROM PER_PERSON_NAMES_F           PPNF,
+         PER_ALL_PEOPLE_F             PAPF,
+         HR_ALL_POSITIONS_F           HAPF,
+         HR_ALL_POSITIONS_F_TL        HAPTL,
+         PER_JOBS_F                   PJF,
+         PER_JOBS_F_TL                PJFL,
+         PER_ALL_ASSIGNMENTS_M        PAAM,
+         HR_ORGANIZATION_UNITS        HOU,
+         HR_ORG_UNIT_CLASSIFICATIONS_F HOUCF,
+         HR_ORGANIZATION_UNITS_F_TL   HOUFL,
+         PER_LOCATIONS                PL,
+         PER_LOCATION_DETAILS_F       PLFD,
+         PER_LOCATION_DETAILS_F_TL    PLFL,
+         PER_PERSONS                  PP,
+         PER_NATIONAL_IDENTIFIERS     PNI,
+         (SELECT *
+            FROM CMP_SALARY a
+           WHERE A.SALARY_ID = (SELECT MAX (B.SALARY_ID)
+                                  FROM CMP_SALARY B
+                                 WHERE A.PERSON_ID = B.PERSON_ID)) CS,
+         PER_PEOPLE_LEGISLATIVE_F     PPLF,
+         (SELECT *
+            FROM PER_PERIODS_OF_SERVICE a
+           WHERE     a.primarY_flag = 'Y'
+                 AND A.PERIOD_OF_SERVICE_ID =
+                     (SELECT MAX (B.PERIOD_OF_SERVICE_ID)
+                       FROM PER_PERIODS_OF_SERVICE B
+                      WHERE B.primary_flag = 'Y' AND A.PERSON_ID = B.PERSON_ID))
+         PPOS
+   WHERE                                   --PAPF.PERSON_NUMBER = 'Test051223'
+             TRUNC (SYSDATE) BETWEEN PAPF.EFFECTIVE_START_DATE
+                                 AND PAPF.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PPNF.EFFECTIVE_START_DATE
+                                 AND PPNF.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN HAPF.EFFECTIVE_START_DATE
+                                 AND HAPF.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN HAPTL.EFFECTIVE_START_DATE
+                                 AND HAPTL.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PAAM.EFFECTIVE_START_DATE
+                                 AND PAAM.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN HOUCF.EFFECTIVE_START_DATE
+                                 AND HOUCF.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN HOUFL.EFFECTIVE_START_DATE
+                                 AND HOUFL.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PLFD.EFFECTIVE_START_DATE
+                                 AND PLFD.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PLFL.EFFECTIVE_START_DATE
+                                 AND PLFL.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PPLF.EFFECTIVE_START_DATE
+                                 AND PPLF.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PJF.EFFECTIVE_START_DATE
+                                 AND PJF.EFFECTIVE_END_DATE
+         AND TRUNC (SYSDATE) BETWEEN PJFL.EFFECTIVE_START_DATE
+                                 AND PJFL.EFFECTIVE_END_DATE
+         AND PAPF.PERSON_ID = PPNF.PERSON_ID
+         AND PAAM.PERIOD_OF_SERVICE_ID = PPOS.PERIOD_OF_SERVICE_ID
+         AND PPOS.PRIMARY_FLAG = 'Y'
+         AND PPNF.NAME_TYPE = 'GLOBAL'
+         AND HAPF.POSITION_ID = HAPTL.POSITION_ID
+         AND PAAM.PERSON_ID = PAPF.PERSON_ID
+         AND PAAM.POSITION_ID = HAPF.POSITION_ID
+         AND PAAM.JOB_ID = PJF.JOB_ID
+         AND PJF.JOB_ID = PJFL.JOB_ID
+         AND PL.LOCATION_ID = PAAM.LOCATION_ID
+         AND PL.LOCATION_ID = PLFD.LOCATION_ID
+         AND PLFD.LOCATION_ID = PAAM.LOCATION_ID
+         AND PAPF.PERSON_ID = PP.PERSON_ID
+         AND PAPF.PERSON_ID = PNI.PERSON_ID
+         AND PLFD.LOCATION_DETAILS_ID = PLFL.LOCATION_DETAILS_ID
+         AND PAPF.PERSON_ID = CS.PERSON_ID
+         -- AND CS.ASSIGNMENT_ID = PAAM.ASSIGNMENT_ID
+         AND PAPF.PERSON_ID = PPLF.PERSON_ID
+         AND PAAM.ASSIGNMENT_TYPE IN ('E', 'C')
+         AND PAAM.ASSIGNMENT_STATUS_TYPE = 'ACTIVE'
+         AND HAPTL.LANGUAGE = 'US'
+         AND PJFL.LANGUAGE = 'US'
+         AND HOUCF.CLASSIFICATION_CODE = 'DEPARTMENT'
+         AND HOUCF.ORGANIZATION_ID = HOU.ORGANIZATION_ID
+         AND HOUCF.ORGANIZATION_ID = HOUFL.ORGANIZATION_ID
+         AND HOU.ORGANIZATION_ID = PAAM.ORGANIZATION_ID
+         AND HOUFL.LANGUAGE = 'US'
+         AND PLFL.LANGUAGE = 'US'
+         AND PPLF.LEGISLATION_CODE = 'TR'
+         --  AND PAPF.PERSON_NUMBER = 'TST0032'
+         AND PNI.NATIONAL_IDENTIFIER_TYPE = 'ORA_HRX_TC_KIMLIK_NO'
+ORDER BY PPNF.FULL_NAME ASC
